@@ -1,0 +1,344 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Lenis (SmoothScroll.jsx) drives its own eased scroll position every
+     frame; CSS's `scroll-behavior: smooth` above would layer a second,
+     conflicting easing curve on top whenever it's active (it tags <html>
+     with this class), so switch back to an instant native jump while it's
+     running. Reduced-motion users never get the `lenis` class — Lenis is
+     skipped entirely for them — so this rule simply never applies. */
+  html.lenis {
+    scroll-behavior: auto !important;
+  }
+
+  body {
+    @apply bg-ink text-white font-sans antialiased;
+    /* `clip`, not `hidden`: overflow-x:hidden makes the body a scroll
+       container, which silently breaks `position: sticky` for every
+       descendant (the Portfolio scroll stack depends on it). `clip` cuts
+       off horizontal overflow exactly the same way without creating one. */
+    overflow-x: clip;
+  }
+
+  ::selection {
+    @apply bg-brand-500/40 text-white;
+  }
+
+  /* Slim dark scrollbar, matching the reference UI */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-ink;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-ink-700 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-ink-800;
+  }
+}
+
+@layer components {
+  /* The dark rounded panel that wraps most sections, with the purple
+     light-shaft bleeding down from the top edge. */
+  .section-panel {
+    @apply relative overflow-hidden rounded-panel bg-ink-900;
+  }
+  .section-panel::before {
+    content: '';
+    @apply pointer-events-none absolute inset-0 bg-panel-glow;
+  }
+
+  /* Keyframes for LightRays.jsx — the Services panel's volumetric god-rays.
+     Kept as global @keyframes (not Tailwind) since neither the per-beam
+     custom-property sway angle nor a multi-stage shimmer/bloom loop has a
+     Tailwind equivalent. `--sway` is set inline per-beam from the component. */
+  /* Sweep + breathe in ONE keyframe: both animate `transform`, so they can't
+     be separate animations on the same element — the second would simply
+     overwrite the first. transform-origin is `top center`, so scaleY grows
+     each beam downward from the convergence point, reading as the shaft
+     lengthening rather than stretching in place. */
+  @keyframes lr-sway {
+    from {
+      transform: rotate(calc(var(--sway, 5deg) * -1)) scaleY(0.94);
+    }
+    to {
+      transform: rotate(var(--sway, 5deg)) scaleY(1.06);
+    }
+  }
+  /* Multiplies each beam's base gradient alpha. Range is deliberately wide —
+     these sit under a 14-30px blur, which flattens any subtle change into
+     nothing, so the beams need to genuinely wax and wane to read as moving. */
+  @keyframes lr-shimmer {
+    0%,
+    100% {
+      opacity: 0.3;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  /* Central bloom breathing. */
+  @keyframes lr-bloom {
+    0%,
+    100% {
+      transform: scale(0.96);
+      opacity: 0.32;
+    }
+    50% {
+      transform: scale(1.16);
+      opacity: 0.7;
+    }
+  }
+  /* Accessibility net: LightRays already checks useReducedMotion and skips
+     starting these animations, but this covers anything that reaches the
+     DOM before that check runs (e.g. a future SSR pass). */
+  @media (prefers-reduced-motion: reduce) {
+    .lr-beam-inner,
+    .lr-bloom {
+      animation: none !important;
+    }
+  }
+
+  /* Illustration well inside each capability card (screenshot 4). Written as
+     real CSS rather than a Tailwind arbitrary value: a two-layer gradient
+     can't survive being split across a concatenated class string, and the
+     scanner silently drops it when it does. Sampled from the reference at
+     roughly rgb(38,29,80) mid-panel — clearly lighter than the card, not
+     darker. */
+  .capability-panel {
+    @apply relative w-full overflow-hidden rounded-2xl;
+    border: 1px solid rgba(124, 92, 220, 0.26);
+    /* Deep purple-black throughout with only a faint top bloom. The well is
+       darker than it first looks: where the reference appears to brighten
+       toward the bottom (the integrations card) that light comes from the
+       hub's own glow sitting on top, not from the panel fill. */
+    background:
+      radial-gradient(
+        90% 60% at 50% 0%,
+        rgba(139, 92, 246, 0.18) 0%,
+        rgba(139, 92, 246, 0.05) 50%,
+        rgba(0, 0, 0, 0) 80%
+      ),
+      linear-gradient(180deg, #1e1638 0%, #191231 55%, #150f28 100%);
+  }
+
+  /* Portfolio panel (screenshots 9-11): a diagonal top-left -> bottom-right
+     purple-black tilt, not the shared .section-panel's symmetric top-center
+     radial glow. A radial highlight sits toward the upper-left, off-centre,
+     so the brightness reads as coming from one direction along the diagonal
+     rather than glowing evenly from dead-centre-top. */
+  /* Portfolio panel (screenshots 9-11): near-black with soft violet light
+     SHAFTS running diagonally, not an even purple wash.
+
+     The previous version used one big radial (50%x42% of the panel at 0.24
+     alpha) which composited to rgb(51,31,104) — roughly 2x too bright, and
+     spread over so much area that it read as uniform glow with no direction.
+     Here the light comes from narrow bands instead: each linear-gradient is
+     mostly transparent with a short lit window, so the colour stops run
+     along the 135deg axis and the visible band runs perpendicular to it
+     (lower-left to upper-right). Corners get no band at all, so they stay
+     genuinely black. Brightest composite lands ~rgb(28,18,61). */
+  /* `overflow-clip` rather than `overflow-hidden` for the same reason as
+     `body` above — hidden would make this a scroll container and kill the
+     sticky positioning the case-study stack inside it relies on. */
+  .portfolio-panel {
+    @apply relative w-full overflow-clip rounded-panel;
+    background:
+      /* Faint bloom lifting the heading off the background. */
+      radial-gradient(
+        42% 34% at 52% 34%,
+        rgba(124, 77, 255, 0.08) 0%,
+        rgba(124, 77, 255, 0.03) 50%,
+        rgba(0, 0, 0, 0) 78%
+      ),
+      /* Lower/secondary shaft. */
+      linear-gradient(
+        135deg,
+        rgba(0, 0, 0, 0) 44%,
+        rgba(104, 66, 200, 0.08) 62%,
+        rgba(0, 0, 0, 0) 82%
+      ),
+      /* Primary shaft, wider and slightly brighter. */
+      linear-gradient(
+        135deg,
+        rgba(0, 0, 0, 0) 6%,
+        rgba(124, 77, 255, 0.11) 24%,
+        rgba(88, 54, 170, 0.05) 38%,
+        rgba(0, 0, 0, 0) 56%
+      ),
+      /* Near-black base carrying only the faintest indigo cast. */
+      linear-gradient(160deg, #04030a 0%, #070512 45%, #030207 100%);
+  }
+
+  /* De-bands the .portfolio-panel gradient: its mid-tones (#150c2b/#1c1038/
+     #0a0612) sit close together across a wide diagonal span, which 8-bit
+     rendering plus a lossy re-encode (e.g. a screenshot) reliably turns into
+     visible diagonal streaking. A faint monochrome feTurbulence grain
+     perturbs the quantised values enough to kill the banding without
+     reading as visible "noise" — opacity 4% is below the threshold where
+     grain itself becomes visible, it just needs to exceed the ~1/256 step
+     causing the banding. Tiled at 160px so the pattern doesn't repeat
+     visibly at typical panel widths.
+
+     Applied as a real DOM node in Portfolio.jsx (a sibling placed before
+     Container), not a ::after pseudo-element — ::after paints last of all
+     per CSS stacking order, which would put the grain on top of the
+     heading/cards instead of just over the background. */
+  .grain-overlay {
+    @apply pointer-events-none absolute inset-0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 160px 160px;
+    opacity: 0.04;
+  }
+
+  /* Standard card: dark surface, hairline border, dotted texture,
+     glowing purple top line. */
+  .card-surface {
+    @apply relative overflow-hidden rounded-card border border-line bg-ink-850 shadow-card;
+  }
+  .card-surface::after {
+    content: '';
+    @apply pointer-events-none absolute inset-x-0 top-0 h-px bg-card-topline opacity-70;
+  }
+
+  /* `dot-grid` is defined in both backgroundImage and backgroundSize, so a
+     single `bg-dot-grid` already emits both properties — it was applied
+     twice here, which changed nothing and tripped a css-conflict warning. */
+  .card-dots {
+    @apply bg-dot-grid;
+  }
+
+  /* About-section card, rebuilt from the production DOM/CSS (Framer
+     "Primary" -> "Container" pair) rather than sampled off a screenshot.
+     Both layers share the exact same flat near-black fill (rgb(8,8,8)) — the
+     violet read is NOT a tinted background, it's a soft inset glow bleeding
+     down from the card's top inner edge. Frame radius (30px) minus card
+     radius (22px) equals the frame's own padding (8px), which is what keeps
+     the two rounded corners concentric through the gap. */
+  .about-card-frame {
+    @apply rounded-[30px] p-2;
+    background: rgb(8, 8, 8);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow:
+      0 0.6px 1.32px -0.58px rgba(0, 0, 0, 0.09),
+      0 2.29px 5.03px -1.17px rgba(0, 0, 0, 0.1),
+      0 10px 22px -1.75px rgba(0, 0, 0, 0.16);
+  }
+
+  .about-card {
+    @apply relative overflow-hidden rounded-[22px] p-[30px];
+    border: 1px solid rgba(146, 116, 255, 0.5);
+    background: rgb(8, 8, 8);
+    box-shadow: 0 0 24px 1px rgba(124, 77, 255, 0.28);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .about-card:hover {
+    border-color: rgba(146, 116, 255, 0.75);
+    box-shadow: 0 0 32px 2px rgba(124, 77, 255, 0.4);
+  }
+  /* The "Shadow" layer: an almost-imperceptible vignette plus the inset
+     top-glow that actually reads as the card's violet cast. Painted via
+     ::before so it always sits behind the real content that follows it. */
+  .about-card::before {
+    content: '';
+    @apply pointer-events-none absolute inset-0 rounded-[inherit] -z-10;
+    background: radial-gradient(43% 50% at 50% 50%, rgba(15, 9, 18, 0.15) 0%, rgb(12, 9, 18) 100%);
+    box-shadow: inset 0 10px 5px -1px rgba(79, 26, 214, 0.15);
+  }
+
+  /* Separator under the title: a centre-bright fade, not a flat rule. */
+  .about-card-separator {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.15) 50%, transparent 100%);
+  }
+
+  /* Icon well: the same flat-black + inset-glow recipe as the card, scaled
+     down, plus a soft violet ambient shadow and a bright top highlight. */
+  .about-card-icon {
+    @apply relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-[10px] text-white;
+    border: 1px solid rgba(146, 116, 255, 0.55);
+    background: rgb(8, 8, 8);
+    box-shadow:
+      0 0 0 4px rgba(124, 77, 255, 0.1),
+      0 0 22px 0px rgba(124, 77, 255, 0.5);
+  }
+  .about-card-icon::before {
+    content: '';
+    @apply pointer-events-none absolute inset-0 rounded-[inherit] -z-10;
+    background: radial-gradient(43% 50% at 50% 50%, rgba(15, 9, 18, 0.15) 0%, rgb(12, 9, 18) 100%);
+    box-shadow:
+      inset 0 10px 10px -1px rgba(79, 26, 214, 0.15),
+      inset 0 10px 5px -1px rgba(255, 255, 255, 0.08);
+  }
+  .about-card-icon svg {
+    @apply relative;
+  }
+
+  /* Bottom capability pills and the top-right tag share one glass recipe —
+     a near-flat linear fill plus a faint conic sheen — and differ only in
+     their gradient stops and label color, exactly as in the reference. */
+  .about-card-pill,
+  .about-card-tag {
+    @apply relative inline-flex items-center overflow-hidden rounded-pill px-4 py-2.5 text-[13px] font-medium leading-none;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .about-card-pill {
+    background: linear-gradient(to top, rgba(124, 77, 255, 0.2), rgba(153, 153, 153, 0.1));
+    color: #ffffff;
+  }
+  .about-card-tag {
+    background: linear-gradient(to top, rgba(255, 255, 255, 0.05), rgba(97, 97, 97, 0.09));
+    color: rgba(255, 255, 255, 0.6);
+  }
+  .about-card-pill::before,
+  .about-card-tag::before {
+    content: '';
+    @apply pointer-events-none absolute inset-0 -z-10;
+    background: conic-gradient(
+      from 0deg at 50% 50%,
+      rgba(255, 255, 255, 0.15) 0deg,
+      rgba(255, 255, 255, 0) 72deg,
+      rgba(79, 26, 214, 0.2) 172deg,
+      rgba(255, 255, 255, 0) 270deg,
+      rgba(255, 255, 255, 0.15) 360deg
+    );
+    opacity: 0.2;
+  }
+
+  /* Second line of every section heading is rendered in muted grey. */
+  .heading-muted {
+    @apply text-muted-soft;
+  }
+
+  .link-muted {
+    @apply text-muted transition-colors duration-200 hover:text-white;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Pause marquees / heavy motion for users who ask for reduced motion. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-marquee,
+    .animate-marquee-slow,
+    .animate-float {
+      animation: none !important;
+    }
+  }
+}
